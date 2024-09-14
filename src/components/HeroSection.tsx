@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import ScrollButton from './ScrollButton';
 
 const HeroSection: React.FC = () => {
     // Reference to the canvas element
@@ -372,9 +373,14 @@ const HeroSection: React.FC = () => {
     }
 
     return (
-        <div className="relative w-full h-screen overflow-hidden bg-black">
+        <div className="relative w-full h-screen overflow-hidden bg-black flex flex-col items-center justify-center">
             {/* Canvas element for the particle animation */}
             <canvas ref={canvasRef} className="block"></canvas>
+
+            {/* Scroll Button */}
+            <div className="absolute bottom-10">
+                <ScrollButton targetId="next-section" label="Explore More" />
+            </div>
         </div>
     );
 };
