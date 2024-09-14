@@ -1,25 +1,17 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 const HeroSection: React.FC = () => {
     // Reference to the canvas element
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    // State to track screen width
-    const [screenWidth, setScreenWidth] = useState<number | null>(null);
-
-    // Determine if the device is mobile
-    const isMobile = screenWidth !== null ? screenWidth <= 768 : false; // Adjust breakpoint as needed
-
-    // Text lines to display
-    const textLines = isMobile
-        ? ['Lexideck', 'Technologies']
-        : ['Lexideck Technologies'];
+    // Text to display
+    const textLines = useRef<string[]>([]);
 
     // Mouse interaction object
     const mouse = useRef({
         x: null as number | null,
         y: null as number | null,
-        radius: 100,
+        radius: 100, // Default radius
     });
 
     // Arrays for particles
@@ -27,71 +19,101 @@ const HeroSection: React.FC = () => {
     const ambientParticlesArray = useRef<AmbientParticle[]>([]);
 
     useEffect(() => {
-        // Check if window is defined
-        if (typeof window !== 'undefined') {
-            // Update screen width
-            setScreenWidth(window.innerWidth);
+        const canvas = canvasRef.current;
+        if (!canvas) return;
 
-            const handleResize = () => {
-                setScreenWidth(window.innerWidth);
-            };
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-            // Add event listener for window resize
-            window.addEventListener('resize', handleResize);
+        // Initial setup
+        setupCanvas(canvas, ctx);
 
-            // Cleanup
-            return () => {
-                window.removeEventListener('resize', handleResize);
-            };
-        }
+        // Animation loop
+        let animationFrameId: number;
+        const animate = () => {
+            animationFrameId = requestAnimationFrame(animate);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Update ambient particles
+            ambientParticlesArray.current.forEach((particle) =>
+                particle.update(ctx, canvas)
+            );
+
+            // Update text particles
+            particlesArray.current.forEach((particle) =>
+                particle.update(ctx, mouse.current, ambientParticlesArray.current)
+            );
+        };
+        animate();
+
+        // Event handlers
+        const handleMouseMove = (event: MouseEvent) => {
+            mouse.current.x = event.clientX;
+            mouse.current.y = event.clientY;
+        };
+
+        const handleTouchMove = (event: TouchEvent) => {
+            const touch = event.touches[0];
+            if (touch) {
+                mouse.current.x = touch.clientX;
+                mouse.current.y = touch.clientY;
+            }
+        };
+
+        const handleResize = () => {
+            setupCanvas(canvas, ctx);
+        };
+
+        // Add event listeners
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('touchmove', handleTouchMove);
+        window.addEventListener('resize', handleResize);
+
+        // Cleanup function
+        return () => {
+            cancelAnimationFrame(animationFrameId);
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('touchmove', handleTouchMove);
+            window.removeEventListener('resize', handleResize);
+        };
     }, []);
 
-    useEffect(() => {
-        // Ensure screenWidth is set before proceeding
-        if (screenWidth !== null) {
-            const canvas = canvasRef.current;
-            if (!canvas) return;
-
-            const ctx = canvas.getContext('2d');
-            if (!ctx) return;
-
-            // Initial setup
-            setupCanvas(canvas, ctx);
-
-            // Animation loop
-            let animationFrameId: number;
-            const animate = () => {
-                animationFrameId = requestAnimationFrame(animate);
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                // Update ambient particles
-                ambientParticlesArray.current.forEach((particle) =>
-                    particle.update(ctx, canvas)
-                );
-
-                // Update text particles
-                particlesArray.current.forEach((particle) =>
-                    particle.update(ctx, mouse.current, ambientParticlesArray.current)
-                );
-            };
-            animate();
-
-            // Event handlers
-            const handleMouseMove = (event: MouseEvent) => {
-                mouse.current.x = event.clientX;
-                mouse.current.y = event.clientY;
-            };
-
-            // Add event listener for mouse movement
-            window.addEventListener('mousemove', handleMouseMove);
-
-            // Cleanup function
-            return () => {
-                cancelAnimationFrame(animationFrameId);
-                window.removeEventListener('mousemove', handleMouseMove);
-            };
+    // Function to set interaction radius based on screen size
+    const setInteractionRadius = () => {
+        if (window.innerWidth < 600) {
+            // Mobile devices
+            mouse.current.radius = 50; // Adjust this value as needed
+        } else {
+            // Desktop devices
+            mouse.current.radius = 100; // Adjust this value as needed
         }
-    }, [screenWidth, textLines]);
+    };
+
+    // Function to set ambient particle count based on screen size
+    const setAmbientParticleCount = (): number => {
+        if (window.innerWidth < 600) {
+            // Mobile devices
+            return 50; // Fewer particles on mobile
+        } else {
+            // Desktop devices
+            return 100; // More particles on desktop
+        }
+    };
+
+    // Function to set font size based on screen size
+    const setFontSize = (): number => {
+        let fontSize: number;
+
+        if (window.innerWidth < 600) {
+            // Mobile devices
+            fontSize = Math.min(40, window.innerWidth * 0.1);
+        } else {
+            // Desktop devices
+            fontSize = Math.min(80, window.innerWidth * 0.05);
+        }
+
+        return fontSize;
+    };
 
     // Function to set up canvas and initialize particles
     const setupCanvas = (
@@ -102,11 +124,23 @@ const HeroSection: React.FC = () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
+        // Set interaction radius based on screen size
+        setInteractionRadius();
+
+        // Determine text lines based on screen width
+        if (window.innerWidth < 600) {
+            // For small screens, split text into two lines
+            textLines.current = ['Lexideck', 'Technologies'];
+        } else {
+            // For larger screens, keep text on a single line
+            textLines.current = ['Lexideck Technologies'];
+        }
+
         // Initialize particles
         initParticles(ctx, canvas);
     };
 
-    // Initialize particles based on the text lines
+    // Initialize particles based on the input text
     const initParticles = (
         ctx: CanvasRenderingContext2D,
         canvas: HTMLCanvasElement
@@ -127,45 +161,24 @@ const HeroSection: React.FC = () => {
             // Side padding (in pixels)
             const sidePadding = 50; // Adjust this value as needed
 
-            // Set font size based on canvas dimensions and padding
-            const maxTextWidth = canvas.width - sidePadding * 2;
-
-            // Base scaling factor adjusted for mobile
-            const scalingFactor = isMobile ? 0.12 : 0.1;
-
-            // Set initial font size
-            let fontSize = scalingFactor * Math.min(canvas.width, canvas.height);
-
-            // Set minimum and maximum font sizes
-            const minFontSize = 30;
-            const maxFontSize = isMobile ? 80 : 100;
-
-            // Adjust font size to fit within the maxTextWidth
-            textCtx.font = `bold ${fontSize}px Arial`;
-            let textMetrics = textCtx.measureText(textLines[0]);
-            while (textMetrics.width > maxTextWidth && fontSize > minFontSize) {
-                fontSize -= 1;
-                textCtx.font = `bold ${fontSize}px Arial`;
-                textMetrics = textCtx.measureText(textLines[0]);
-            }
-            fontSize = Math.min(fontSize, maxFontSize);
+            // Set font size based on screen dimensions
+            const fontSize = setFontSize();
 
             // Set font and styles
-            textCtx.font = `bold ${fontSize}px Arial`;
+            textCtx.font = `bold ${fontSize}px "Noto Sans Warang Citi", sans-serif`;
             textCtx.fillStyle = 'white';
             textCtx.textAlign = 'center';
             textCtx.textBaseline = 'middle';
 
-            // Calculate vertical positioning for multiple lines
+            // Calculate starting Y position to center text vertically
             const lineHeight = fontSize * 1.2; // Adjust line height as needed
-            const totalTextHeight = lineHeight * textLines.length;
-            const startY = (textCanvas.height - totalTextHeight) / 2 + fontSize / 2;
+            const totalTextHeight = lineHeight * textLines.current.length;
+            let textY = (textCanvas.height - totalTextHeight) / 2 + fontSize / 2;
 
             // Draw each line of text
-            textLines.forEach((line, index) => {
-                const textX = textCanvas.width / 2;
-                const textY = startY + index * lineHeight;
-                textCtx.fillText(line, textX, textY);
+            textLines.current.forEach((line) => {
+                textCtx.fillText(line, textCanvas.width / 2, textY);
+                textY += lineHeight;
             });
 
             // Get pixel data from the text canvas
@@ -176,34 +189,48 @@ const HeroSection: React.FC = () => {
                 textCanvas.height
             );
 
-            // Adjust particle spacing and size based on screen size
-            const particleGap = isMobile ? 3 : 4; // Smaller gap for more particles on mobile
-            const particleSize = isMobile ? 2 : 1.5; // Larger particles on mobile
+            // Adjust particle spacing based on font size
+            const particleGap = Math.max(2, Math.floor(fontSize / 25));
 
             // Create particles from text pixels
             for (let y = 0; y < textCoordinates.height; y += particleGap) {
                 for (let x = 0; x < textCoordinates.width; x += particleGap) {
-                    const index = (y * 4 * textCoordinates.width) + (x * 4);
+                    const index = y * 4 * textCoordinates.width + x * 4;
                     if (textCoordinates.data[index + 3] > 128) {
                         particlesArray.current.push(
-                            new Particle(
-                                x,
-                                y,
-                                canvas.width,
-                                canvas.height,
-                                particleSize
-                            )
+                            new Particle(x, y, canvas.width, canvas.height)
                         );
                     }
                 }
             }
         }
 
+        // Determine ambient particle speed based on screen width
+        let minSpeed: number;
+        let maxSpeed: number;
+
+        if (window.innerWidth < 600) {
+            // For mobile devices, slow down the particles
+            minSpeed = -0.2;
+            maxSpeed = 0.2;
+        } else {
+            // For larger screens, normal speed
+            minSpeed = -0.5;
+            maxSpeed = 0.5;
+        }
+
+        // Get ambient particle count
+        const numberOfAmbientParticles = setAmbientParticleCount();
+
         // Create ambient particles
-        const numberOfAmbientParticles = 100;
         for (let i = 0; i < numberOfAmbientParticles; i++) {
             ambientParticlesArray.current.push(
-                new AmbientParticle(canvas.width, canvas.height, isMobile)
+                new AmbientParticle(
+                    canvas.width,
+                    canvas.height,
+                    minSpeed,
+                    maxSpeed
+                )
             );
         }
     };
@@ -223,14 +250,13 @@ const HeroSection: React.FC = () => {
             x: number,
             y: number,
             canvasWidth: number,
-            canvasHeight: number,
-            particleSize: number
+            canvasHeight: number
         ) {
             this.x = Math.random() * canvasWidth;
             this.y = Math.random() * canvasHeight;
             this.baseX = x;
             this.baseY = y;
-            this.size = particleSize;
+            this.size = 1.5;
             this.color = 'white';
             this.density = Math.random() * 30 + 1;
             this.z = Math.random() * 20;
@@ -310,14 +336,16 @@ const HeroSection: React.FC = () => {
         constructor(
             canvasWidth: number,
             canvasHeight: number,
-            isMobile: boolean
+            minSpeed: number,
+            maxSpeed: number
         ) {
             this.x = Math.random() * canvasWidth;
             this.y = Math.random() * canvasHeight;
-            this.size = Math.random() * (isMobile ? 3 : 2) + 1;
+            this.size = Math.random() * 2 + 1;
             this.color = 'rgba(255,255,255,0.5)';
-            this.speedX = Math.random() * 1 - 0.5;
-            this.speedY = Math.random() * 1 - 0.5;
+            // Adjusted speed using minSpeed and maxSpeed
+            this.speedX = Math.random() * (maxSpeed - minSpeed) + minSpeed;
+            this.speedY = Math.random() * (maxSpeed - minSpeed) + minSpeed;
         }
 
         // Draw the ambient particle
@@ -341,11 +369,6 @@ const HeroSection: React.FC = () => {
 
             this.draw(ctx);
         }
-    }
-
-    // Render nothing until screenWidth is set
-    if (screenWidth === null) {
-        return null;
     }
 
     return (
